@@ -5,3 +5,4 @@ proj/
 *.ipa
 setup_gh.ps1
 push_and_build.ps1
+install_*.ps1

@@ -58,22 +58,79 @@ ac = os.path.join(ios, 'AppController.mm')
 s = open(ac, encoding='utf8').read()
 if '#import <objc/runtime.h>' not in s:
     s = '#import <objc/runtime.h>\n' + s
+if '#include <execinfo.h>' not in s:
+    s = '#include <execinfo.h>\n#include <signal.h>\n#include <unistd.h>\n#include <fcntl.h>\n#include <stdio.h>\n' + s
 s = s.replace('@implementation AppController\n', '''static id pv_native_stub(id self, SEL _cmd, id arg) { return @"{}"; }
+
+// [private] log chan doan -> Documents (lay ra bang iTunes > Chia se tep)
+static int pv_crash_fd = -1;
+static void pv_signal(int sig) {
+    if (pv_crash_fd >= 0) {
+        char m[64]; int n = snprintf(m, sizeof m, "\\n== SIGNAL %d ==\\n", sig); write(pv_crash_fd, m, n);
+        void *bt[64]; int c = backtrace(bt, 64); backtrace_symbols_fd(bt, c, pv_crash_fd); fsync(pv_crash_fd);
+    }
+    signal(sig, SIG_DFL); raise(sig);
+}
+static void pv_exception(NSException *e) {
+    NSString *t = [NSString stringWithFormat:@"\\n== NSException %@: %@ ==\\n%@\\n", e.name, e.reason, e.callStackSymbols];
+    if (pv_crash_fd >= 0) { const char *u = t.UTF8String; write(pv_crash_fd, u, strlen(u)); fsync(pv_crash_fd); }
+}
+void pv_mark(const char *m) { fprintf(stderr, "[pv] %s\\n", m); fflush(stderr); }
+static void pv_diag_init() {
+    NSString *doc = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+    freopen([[doc stringByAppendingPathComponent:@"pv_log.txt"] fileSystemRepresentation], "w", stderr);
+    freopen([[doc stringByAppendingPathComponent:@"pv_stdout.txt"] fileSystemRepresentation], "w", stdout);
+    setvbuf(stdout, NULL, _IOLBF, 0); setvbuf(stderr, NULL, _IONBF, 0);
+    pv_crash_fd = open([[doc stringByAppendingPathComponent:@"pv_crash.txt"] fileSystemRepresentation], O_WRONLY | O_CREAT | O_APPEND, 0644);
+    int sigs[] = {SIGSEGV, SIGABRT, SIGBUS, SIGILL, SIGFPE, SIGTRAP};
+    for (int i = 0; i < 6; i++) signal(sigs[i], pv_signal);
+    NSSetUncaughtExceptionHandler(&pv_exception);
+    pv_mark([[NSString stringWithFormat:@"boot %@ iOS %@", [NSDate date], [UIDevice currentDevice].systemVersion] UTF8String]);
+}
 
 @implementation AppController
 
-// [private] SDK goc khong co tren ban nay: moi lenh "ten:" cua game tra ve "{}"
+// [private] SDK goc khong co tren ban nay: lenh "ten:" cua game (goi qua jsb.reflection) tra ve "{}".
+// Bo qua selector he thong (KVO, NSObject, '_' ...) de khong lam hong UIKit.
 + (BOOL)resolveClassMethod:(SEL)sel {
     NSString *n = NSStringFromSelector(sel);
-    if ([n hasSuffix:@":"] && [[n componentsSeparatedByString:@":"] count] == 2) {
+    static NSArray *skip = nil;
+    if (!skip) skip = @[@"_", @"automatically", @"keyPaths", @"instances", @"conformsTo", @"isSubclass", @"resolve",
+                        @"accessInstance", @"load", @"initialize", @"new", @"alloc", @"copy", @"mutableCopy", @"description",
+                        @"respondsTo", @"methodFor", @"instanceMethod", @"class", @"superclass", @"supports", @"layer",
+                        @"requires", @"is", @"should", @"can", @"set", @"get"];
+    BOOL sys = NO;
+    for (NSString *p in skip) if ([n hasPrefix:p]) { sys = YES; break; }
+    if (!sys && [n hasSuffix:@":"] && [[n componentsSeparatedByString:@":"] count] == 2) {
+        pv_mark([[@"native stub " stringByAppendingString:n] UTF8String]);
         class_addMethod(object_getClass(self), sel, (IMP)pv_native_stub, "@@:@");
         return YES;
     }
     return [super resolveClassMethod:sel];
 }
 ''', 1)
+s = s.replace('''- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+''', '''- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+    pv_diag_init();
+''', 1)
+s = s.replace('    app->start();\n', '    pv_mark("app->start begin");\n    app->start();\n    pv_mark("app->start end");\n', 1)
+if 'pv_diag_init();' not in s or 'app->start begin' not in s:
+    raise SystemExit('khong chen duoc log chan doan vao AppController.mm')
 open(ac, 'w', encoding='utf8').write(s)
 print('va', ac)
+
+# 2b. moc log trong AppDelegate.cpp (khoi dong JS)
+ad = os.path.join(proj, 'frameworks', 'runtime-src', 'Classes', 'AppDelegate.cpp')
+s = open(ad, encoding='utf8').read()
+s = s.replace('USING_NS_CC;', 'USING_NS_CC;\nvoid pv_mark(const char *m);', 1)
+s = s.replace('        cocos2d::log("\\nUncaught Exception:', '        pv_mark(message); pv_mark(stack);\n        cocos2d::log("\\nUncaught Exception:', 1)
+s = s.replace('    jsb_run_script("jsb-adapter/jsb-builtin.js");\n    jsb_run_script("main.js");',
+              '    pv_mark("run jsb-builtin");\n    jsb_run_script("jsb-adapter/jsb-builtin.js");\n'
+              '    pv_mark("run main.js");\n    jsb_run_script("main.js");\n    pv_mark("main.js returned");', 1)
+if 'run main.js' not in s or 'pv_mark(message)' not in s:
+    raise SystemExit('khong chen duoc moc log vao AppDelegate.cpp')
+open(ad, 'w', encoding='utf8').write(s)
+print('va', ad)
 
 # 3. man hinh doc
 rv = os.path.join(ios, 'RootViewController.mm')
