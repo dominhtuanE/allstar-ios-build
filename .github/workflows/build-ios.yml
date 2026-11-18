@@ -1,4 +1,4 @@
-# Build "IPA khung" (engine Cocos Creator 2.4.2 JSB, chua co du lieu game) tren may Mac cua GitHub.
+# Build "IPA khung" (engine Cocos Creator 2.4.12 JSB, chua co du lieu game) tren may Mac cua GitHub.
 # Du lieu game duoc ghep vao tren may Windows bang tools/build_ipa.py, roi ky + cai bang Sideloadly.
 name: build-ios-shell
 
@@ -18,8 +18,9 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 90
     env:
-      ENGINE_TAG: '2.4.2'
-      EXTERNAL_TAG: 'v24-2'
+      ENGINE_TAG: '2.4.12'
+      EXTERNAL_TAG: 'v24-11'
+      EXTERNAL_REPO: 'cocos/cocos-engine-external'
     steps:
       - uses: actions/checkout@v4
 

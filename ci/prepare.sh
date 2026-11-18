@@ -1,5 +1,5 @@
 #!/bin/bash
-# Tai engine-native (Cocos Creator 2.4.2) + thu vien external, dung du an iOS tu template js-template-link.
+# Tai engine-native (Cocos Creator 2.4.12 - dung voi ENGINE_VERSION trong src/cocos2d-jsb cua game) + thu vien external, dung du an iOS tu template js-template-link.
 set -euo pipefail
 ROOT="$(pwd)"
 ENGINE="$ROOT/engine"
@@ -7,7 +7,7 @@ PROJ="$ROOT/proj"
 
 git clone --depth 1 --branch "$ENGINE_TAG" https://github.com/cocos/engine-native.git "$ENGINE"
 
-curl -sSL -o /tmp/external.zip "https://github.com/cocos-creator/cocos2d-x-lite-external/archive/refs/tags/$EXTERNAL_TAG.zip"
+curl -sSL -o /tmp/external.zip "https://github.com/${EXTERNAL_REPO:-cocos-creator/cocos2d-x-lite-external}/archive/refs/tags/$EXTERNAL_TAG.zip"
 unzip -q /tmp/external.zip -d /tmp/ext
 EXT_DIR=$(ls -d /tmp/ext/*/ | head -1)
 mkdir -p "$ENGINE/external"
