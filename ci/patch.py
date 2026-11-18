@@ -67,8 +67,9 @@ s = open(ac, encoding='utf8').read()
 if '#import <objc/runtime.h>' not in s:
     s = '#import <objc/runtime.h>\n' + s
 if '#include <execinfo.h>' not in s:
-    s = '#include <execinfo.h>\n#include <signal.h>\n#include <unistd.h>\n#include <fcntl.h>\n#include <stdio.h>\n' + s
+    s = '#include <execinfo.h>\n#include <string.h>\n#include <signal.h>\n#include <unistd.h>\n#include <fcntl.h>\n#include <stdio.h>\n' + s
 s = s.replace('@implementation AppController\n', '''static id pv_native_stub(id self, SEL _cmd, id arg) { return @"{}"; }
+static id pv_native_stub0(id self, SEL _cmd) { return @"{}"; }
 
 // [private] log chan doan -> Documents (lay ra bang iTunes > Chia se tep)
 static int pv_crash_fd = -1;
@@ -98,20 +99,27 @@ static void pv_diag_init() {
 
 @implementation AppController
 
-// [private] SDK goc khong co tren ban nay: lenh "ten:" cua game (goi qua jsb.reflection) tra ve "{}".
+// [private] SDK goc khong co tren ban nay: lenh "ten:" / "ten" cua game (goi qua jsb.reflection) tra ve "{}".
 // Bo qua selector he thong (KVO, NSObject, '_' ...) de khong lam hong UIKit.
+// Danh sach bo qua la mang chuoi C: du an bien dich KHONG ARC -> @[...] luu trong bien static bi giai phong -> crash.
 + (BOOL)resolveClassMethod:(SEL)sel {
-    NSString *n = NSStringFromSelector(sel);
-    static NSArray *skip = nil;
-    if (!skip) skip = @[@"_", @"automatically", @"keyPaths", @"instances", @"conformsTo", @"isSubclass", @"resolve",
-                        @"accessInstance", @"load", @"initialize", @"new", @"alloc", @"copy", @"mutableCopy", @"description",
-                        @"respondsTo", @"methodFor", @"instanceMethod", @"class", @"superclass", @"supports", @"layer",
-                        @"requires", @"is", @"should", @"can", @"set", @"get"];
-    BOOL sys = NO;
-    for (NSString *p in skip) if ([n hasPrefix:p]) { sys = YES; break; }
-    if (!sys && [n hasSuffix:@":"] && [[n componentsSeparatedByString:@":"] count] == 2) {
-        pv_mark([[@"native stub " stringByAppendingString:n] UTF8String]);
+    static const char *skip[] = {"_", "automatically", "keyPaths", "instances", "conformsTo", "isSubclass", "resolve",
+        "accessInstance", "load", "initialize", "new", "alloc", "copy", "mutableCopy", "description", "debugDescription",
+        "respondsTo", "methodFor", "instanceMethod", "class", "superclass", "supports", "layer", "hash", "self",
+        "requires", "is", "should", "can", "set", "get", "init", "dealloc", "retain", "release", "autorelease", NULL};
+    const char *n = sel_getName(sel);
+    for (int i = 0; skip[i]; i++) if (strncmp(n, skip[i], strlen(skip[i])) == 0) return [super resolveClassMethod:sel];
+    const char *c = strchr(n, ':');
+    int colons = 0;
+    for (const char *q = n; *q; q++) if (*q == ':') colons++;
+    if (colons == 1 && c[1] == 0) {  // "ten:" -> 1 tham so
+        pv_mark("native stub (1 arg)"); pv_mark(n);
         class_addMethod(object_getClass(self), sel, (IMP)pv_native_stub, "@@:@");
+        return YES;
+    }
+    if (colons == 0 && n[0] >= 'a' && n[0] <= 'z') {  // "ten" -> khong tham so (vd pingsdtw8)
+        pv_mark("native stub (0 arg)"); pv_mark(n);
+        class_addMethod(object_getClass(self), sel, (IMP)pv_native_stub0, "@@:");
         return YES;
     }
     return [super resolveClassMethod:sel];
