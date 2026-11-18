@@ -40,6 +40,14 @@ edit(os.path.join(engine, 'cocos', 'platform', 'CCFileUtils.cpp'),
     return path;
 }''')
 
+# 1a. V8 luon chay --jitless tren iOS: app cai qua Sideloadly khong duoc cap trang nho thuc thi (JIT);
+#     jitSupported() bao sai tren iOS moi -> regexp bien dich ra ma may -> KERN_PROTECTION_FAILURE (SIGKILL)
+edit(os.path.join(engine, 'cocos', 'scripting', 'js-bindings', 'jswrapper', 'v8', 'ScriptEngine.cpp'),
+     '''        if(!jitSupported()) {
+            flags.append(" --jitless");
+        }''',
+     '''        flags.append(" --jitless");  // [private] luon tat JIT tren iOS''')
+
 # 1b. COCOS_X_ROOT (Creator dat san) -> duong dan tuyet doi toi engine trong moi xcconfig/pbxproj cua du an
 COCOS_ROOT = '/Applications/CocosCreator.app/Contents/Resources/cocos2d-x'
 for base in (os.path.join(proj, 'frameworks'),):
