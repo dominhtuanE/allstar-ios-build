@@ -12,6 +12,7 @@ xcodebuild -project "$XPROJ" -target HelloJavascript-mobile -configuration Relea
   OTHER_CFLAGS='$(inherited) -Wno-error -Wno-deprecated-declarations -Wno-implicit-function-declaration' \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" \
   PRODUCT_BUNDLE_IDENTIFIER=com.private.allstarwarrior \
+  COCOS_X_ROOT=/Applications/CocosCreator.app/Contents/Resources/cocos2d-x \
   build > "$ROOT/out/build.log" 2>&1
 RC=$?
 grep -E "error:|BUILD (SUCCEEDED|FAILED)" "$ROOT/out/build.log" | head -60

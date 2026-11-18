@@ -40,6 +40,19 @@ edit(os.path.join(engine, 'cocos', 'platform', 'CCFileUtils.cpp'),
     return path;
 }''')
 
+# 1b. COCOS_X_ROOT (Creator dat san) -> duong dan tuyet doi toi engine trong moi xcconfig/pbxproj cua du an
+COCOS_ROOT = '/Applications/CocosCreator.app/Contents/Resources/cocos2d-x'
+for base in (os.path.join(proj, 'frameworks'),):
+    for root, _, files in os.walk(base):
+        for f in files:
+            if f.endswith(('.xcconfig', '.pbxproj')):
+                p = os.path.join(root, f)
+                s = open(p, encoding='utf8', errors='surrogateescape').read()
+                n = s.replace('${COCOS_X_ROOT}', COCOS_ROOT).replace('$(COCOS_X_ROOT)', COCOS_ROOT)
+                if n != s:
+                    open(p, 'w', encoding='utf8', errors='surrogateescape').write(n)
+                    print('COCOS_X_ROOT ->', p)
+
 # 2. AppController: phuong thuc lop dong
 ac = os.path.join(ios, 'AppController.mm')
 s = open(ac, encoding='utf8').read()
