@@ -1,0 +1,51 @@
+# Build "IPA khung" (engine Cocos Creator 2.4.2 JSB, chua co du lieu game) tren may Mac cua GitHub.
+# Du lieu game duoc ghep vao tren may Windows bang tools/build_ipa.py, roi ky + cai bang Sideloadly.
+name: build-ios-shell
+
+on:
+  workflow_dispatch:
+    inputs:
+      xcode:
+        description: 'Phien ban Xcode (de trong = ban cu nhat co tren runner)'
+        required: false
+        default: ''
+  push:
+    branches: [main]
+    paths: ['ci/**', '.github/workflows/**']
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 90
+    env:
+      ENGINE_TAG: '2.4.2'
+      EXTERNAL_TAG: 'v24-2'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Chon Xcode
+        run: |
+          ls -d /Applications/Xcode*.app || true
+          if [ -n "${{ github.event.inputs.xcode }}" ]; then X="/Applications/Xcode_${{ github.event.inputs.xcode }}.app";
+          else X=$(ls -d /Applications/Xcode_*.app | sort -V | head -1); fi
+          echo "Dung $X"; sudo xcode-select -s "$X"; xcodebuild -version
+
+      - name: Tai engine + external, dung du an
+        run: bash ci/prepare.sh
+
+      - name: Build (khong ky)
+        run: bash ci/build.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: allstar-ios-shell
+          path: out/AllstarShell.ipa
+          if-no-files-found: error
+
+      - name: Log loi build (neu that bai)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: out/build.log
+          if-no-files-found: ignore
